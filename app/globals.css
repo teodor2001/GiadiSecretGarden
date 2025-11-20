@@ -24,6 +24,7 @@ body {
   background-position: center;
   background-attachment: fixed;
   font-family: 'serif';
+  overflow-x: hidden;
 }
 
 @keyframes fadeIn {

@@ -1,16 +1,22 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, BookOpen, Check, X, Upload, Loader2, Sparkles, Send, Trash2, Trophy } from 'lucide-react';
+import { Plus, BookOpen, Check, X, Upload, Loader2, Sparkles, Send, Trash2, Trophy, KeyRound } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 type Flashcard = { id: number; question: string; answer: string; known: boolean; };
 type Topic = { id: number; title: string; cards: Flashcard[]; };
-
-type Evaluation = {
-  isCorrect: boolean;
-  feedback: string;
-};
+type Evaluation = { isCorrect: boolean; feedback: string; };
 
 export default function StudyGarden() {
+  const [secretKey, setSecretKey] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [topics, setTopics] = useState<Topic[]>([]);
   const [newTopicName, setNewTopicName] = useState("");
   const [activeTopic, setActiveTopic] = useState<Topic | null>(null);
@@ -32,14 +38,74 @@ export default function StudyGarden() {
   const [cardsAnswered, setCardsAnswered] = useState(0);
   const [showPerfectRun, setShowPerfectRun] = useState(false);
 
+  const handleLogin = async () => {
+    if (!secretKey.trim()) return;
+    setIsLoadingData(true);
+    try {
+      const { data, error } = await supabase
+        .from('gardens')
+        .select('data')
+        .eq('secret_key', secretKey.trim())
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        alert("Errore di connessione al giardino.");
+      } else if (data) {
+        setTopics(data.data);
+        setIsLoggedIn(true);
+        localStorage.setItem("giadi-garden-key", secretKey.trim());
+      } else {
+        if (confirm("Nessun giardino trovato con questa chiave. Vuoi crearne uno nuovo?")) {
+          const { error: insertError } = await supabase
+            .from('gardens')
+            .insert([{ secret_key: secretKey.trim(), data: [] }]);
+          
+          if (!insertError) {
+            setTopics([]);
+            setIsLoggedIn(true);
+            localStorage.setItem("giadi-garden-key", secretKey.trim());
+          } else {
+            alert("Impossibile creare il giardino.");
+          }
+        }
+      }
+    } catch (e) {
+      alert("Qualcosa è andato storto.");
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
   useEffect(() => {
-    const saved = localStorage.getItem("giadi-garden-data");
-    if (saved) setTopics(JSON.parse(saved));
+    const savedKey = localStorage.getItem("giadi-garden-key");
+    if (savedKey) {
+      setSecretKey(savedKey);
+      const fetchAuto = async () => {
+        setIsLoadingData(true);
+        const { data } = await supabase.from('gardens').select('data').eq('secret_key', savedKey).single();
+        if (data) {
+           setTopics(data.data);
+           setIsLoggedIn(true);
+        }
+        setIsLoadingData(false);
+      };
+      fetchAuto();
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("giadi-garden-data", JSON.stringify(topics));
-  }, [topics]);
+    if (!isLoggedIn || !secretKey) return;
+    const saveData = async () => {
+      setIsSaving(true);
+      await supabase
+        .from('gardens')
+        .update({ data: topics, updated_at: new Date() })
+        .eq('secret_key', secretKey);
+      setIsSaving(false);
+    };
+    const timeoutId = setTimeout(saveData, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [topics, isLoggedIn, secretKey]);
 
   const addTopic = () => {
     if (!newTopicName.trim()) return;
@@ -122,7 +188,6 @@ export default function StudyGarden() {
       });
       const data = await res.json();
       setEvaluation(data);
-
       if (data.isCorrect) {
         const updatedCards = [...activeTopic!.cards];
         updatedCards[currentCardIndex].known = true;
@@ -132,7 +197,6 @@ export default function StudyGarden() {
       } else {
         setSessionMistakes(prev => prev + 1);
       }
-
     } catch (error) {
       alert("Errore verifica.");
     } finally {
@@ -143,10 +207,8 @@ export default function StudyGarden() {
   const nextCard = () => {
     const nextIndex = (currentCardIndex + 1) % activeTopic!.cards.length;
     const totalCards = activeTopic!.cards.length;
-    
     const newCardsAnswered = cardsAnswered + 1;
     setCardsAnswered(newCardsAnswered);
-
     if (newCardsAnswered >= totalCards && sessionMistakes === 0 && nextIndex === 0) {
       setShowPerfectRun(true);
     } else {
@@ -169,12 +231,38 @@ export default function StudyGarden() {
     return <div className="w-3 h-3 rounded-full bg-stone-400"></div>;
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="w-full mt-8 p-8 bg-white/60 backdrop-blur-2xl rounded-[2.5rem] border border-white/60 shadow-2xl mb-24 mx-auto text-center max-w-md animate-in zoom-in-95 duration-500">
+        <h2 className="text-2xl font-serif text-emerald-900 mb-6">Benvenuta nel Giardino 🌿</h2>
+        <p className="text-gray-600 mb-8">Inserisci la parola magica per aprire il tuo spazio.</p>
+        <div className="relative mb-6">
+          <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400" size={20} />
+          <input type="password" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} placeholder="Chiave Segreta" className="w-full py-4 pl-12 pr-4 rounded-2xl border-2 border-emerald-100 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-base" />
+        </div>
+        <button onClick={handleLogin} disabled={isLoadingData} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold text-lg shadow-xl hover:bg-emerald-600 hover:-translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+          {isLoadingData ? <Loader2 className="animate-spin" /> : "Entra"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full mt-6 md:mt-8 p-6 md:p-10 bg-white/60 backdrop-blur-2xl rounded-[2rem] md:rounded-[3rem] border border-white/60 shadow-2xl mb-24 mx-auto relative">
-      <h2 className="text-2xl md:text-3xl font-serif text-emerald-900 mb-8 md:mb-10 text-center flex items-center justify-center gap-3">
-        <span className="text-3xl md:text-4xl">🦋</span> 
-        Il Giardino dello Studio
-      </h2>
+      
+      <div className="flex flex-col-reverse md:flex-row justify-between items-center mb-8 gap-4">
+         <h2 className="text-2xl md:text-3xl font-serif text-emerald-900 text-center flex items-center justify-center gap-3">
+           <span className="text-3xl md:text-4xl">🦋</span> 
+           Il Giardino dello Studio
+         </h2>
+         <div className="flex items-center justify-center bg-white/40 px-4 py-2 rounded-full">
+            {isSaving ? (
+               <span className="text-xs text-emerald-600 flex items-center gap-1 animate-pulse"><Loader2 size={12} className="animate-spin" /> Salvataggio...</span>
+            ) : (
+               <span className="text-xs text-emerald-500 flex items-center gap-1 font-bold"><Check size={12} /> Salvato</span>
+            )}
+         </div>
+      </div>
 
       {!activeTopic ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -190,9 +278,7 @@ export default function StudyGarden() {
           ))}
           <div className="aspect-auto sm:aspect-square border-4 border-dashed border-white/60 bg-white/30 rounded-3xl flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-4 p-4 sm:p-6 hover:bg-white/50 transition-all group h-28 sm:h-auto">
              <div className="w-full flex-1 sm:flex-none text-center">
-                <h4 className="text-sm sm:text-base font-bold text-emerald-800/70 mb-2 uppercase tracking-wide hidden sm:block">
-                  Aggiungi materia
-                </h4>
+                <h4 className="text-sm sm:text-base font-bold text-emerald-800/70 mb-2 uppercase tracking-wide hidden sm:block">Aggiungi materia</h4>
                 <input value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTopic()} placeholder="Es. Diritto Privato..." className="w-full text-left sm:text-center bg-white/50 border border-white/60 rounded-xl px-3 py-2 text-emerald-900 placeholder-emerald-700/40 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-medium text-sm md:text-base" />
              </div>
              <button onClick={addTopic} disabled={!newTopicName.trim()} className="bg-emerald-500 text-white p-3 md:p-4 rounded-full shadow-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95 shrink-0"><Plus size={24} className="md:w-8 md:h-8" /></button>
@@ -262,16 +348,13 @@ export default function StudyGarden() {
             <div className="w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden border-[6px] border-yellow-400 shadow-2xl mb-8 transform hover:scale-105 transition-transform duration-300 bg-white">
                 <img src="/giadi-smug.png" alt="Giadi Smug" className="w-full h-full object-cover" />
             </div>
-            
             <h2 className="text-3xl md:text-5xl font-black text-yellow-600 mb-4 font-serif drop-shadow-sm text-center">TE L'AVEVO DETTO! 😏</h2>
             <p className="text-lg md:text-xl text-gray-700 font-medium mb-8">Percorso Netto. Zero Errori.</p>
-            
             <div className="bg-yellow-50 border-4 border-yellow-200 p-6 md:p-8 rounded-[2rem] mb-10 max-w-lg shadow-sm transform -rotate-1 hover:rotate-0 transition-transform">
                 <p className="text-xl md:text-2xl font-black text-yellow-700 leading-tight italic text-center">
                     "Teo te l'ha sempre detto che sei un genio, testolina!"
                 </p>
             </div>
-            
             <button onClick={() => {setStudyMode(false); setShowPerfectRun(false);}} className="px-10 py-5 bg-yellow-400 text-yellow-900 rounded-2xl font-bold shadow-xl hover:bg-yellow-500 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 text-xl">
                 <Trophy size={28} /> Torna al Giardino
             </button>
