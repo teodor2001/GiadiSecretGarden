@@ -188,17 +188,24 @@ export default function StudyGarden() {
       });
       const data = await res.json();
       setEvaluation(data);
+      
       if (data.isCorrect) {
         const updatedCards = [...activeTopic!.cards];
         updatedCards[currentCardIndex].known = true;
+        
         const updatedTopics = topics.map(t => t.id === activeTopic!.id ? { ...t, cards: updatedCards } : t);
         setTopics(updatedTopics);
         setActiveTopic({ ...activeTopic!, cards: updatedCards });
+
+        const allKnown = updatedCards.every(c => c.known);
+        if (allKnown) {
+           setTimeout(() => setShowPerfectRun(true), 2000); 
+        }
       } else {
         setSessionMistakes(prev => prev + 1);
       }
     } catch (error) {
-      alert("Errore verifica.");
+      alert("Errore verifica. Riprova, Giadi si è distratta un attimo!");
     } finally {
       setIsChecking(false);
     }
@@ -206,16 +213,9 @@ export default function StudyGarden() {
 
   const nextCard = () => {
     const nextIndex = (currentCardIndex + 1) % activeTopic!.cards.length;
-    const totalCards = activeTopic!.cards.length;
-    const newCardsAnswered = cardsAnswered + 1;
-    setCardsAnswered(newCardsAnswered);
-    if (newCardsAnswered >= totalCards && sessionMistakes === 0 && nextIndex === 0) {
-      setShowPerfectRun(true);
-    } else {
-      setCurrentCardIndex(nextIndex);
-      setEvaluation(null);
-      setUserAnswer("");
-    }
+    setCurrentCardIndex(nextIndex);
+    setEvaluation(null);
+    setUserAnswer("");
   };
 
   const getPlantStage = (topic: Topic) => {
@@ -349,10 +349,10 @@ export default function StudyGarden() {
                 <img src="/giadi-smug.png" alt="Giadi Smug" className="w-full h-full object-cover" />
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-yellow-600 mb-4 font-serif drop-shadow-sm text-center">TE L'AVEVO DETTO! 😏</h2>
-            <p className="text-lg md:text-xl text-gray-700 font-medium mb-8">Percorso Netto. Zero Errori.</p>
+            <p className="text-lg md:text-xl text-gray-700 font-medium mb-8">Materia Completata al 100%!</p>
             <div className="bg-yellow-50 border-4 border-yellow-200 p-6 md:p-8 rounded-[2rem] mb-10 max-w-lg shadow-sm transform -rotate-1 hover:rotate-0 transition-transform">
                 <p className="text-xl md:text-2xl font-black text-yellow-700 leading-tight italic text-center">
-                    "Teo te l'ha sempre detto che sei un genio, testolina!"
+                    "Teo te l'ha sempre detto che sei un genio, testolina! Hai imparato tutto!"
                 </p>
             </div>
             <button onClick={() => {setStudyMode(false); setShowPerfectRun(false);}} className="px-10 py-5 bg-yellow-400 text-yellow-900 rounded-2xl font-bold shadow-xl hover:bg-yellow-500 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 text-xl">

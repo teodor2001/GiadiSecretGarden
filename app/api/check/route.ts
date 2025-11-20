@@ -34,12 +34,17 @@ export async function POST(req: Request) {
       Risposta Corretta (dal libro): "${correctAnswer}"
       Risposta dello Studente: "${userAnswer}"
 
-      Compito: Valuta se la risposta dello studente è concettualmente corretta rispetto a quella del libro. Ignora errori di battitura o differenze di fraseggio se il concetto è giusto.
+      Compito: Valuta se la risposta dello studente è concettualmente corretta.
       
+      REGOLE FONDAMENTALI:
+      1. Sii flessibile: Se la risposta è sintetica (es. "Sì", "Vero", "Esatto") ma conferma correttamente il concetto implicito nella domanda, DEVI considerarla corretta (true).
+      2. Ignora errori di battitura o differenze di fraseggio.
+      3. Se il concetto chiave è presente, è corretta.
+
       Rispondi SOLO con questo JSON:
       {
-        "isCorrect": boolean (true se il concetto è giusto, false se è sbagliato o incompleto),
-        "feedback": "string" (Se giusto: un breve complimento. Se sbagliato: spiega gentilmente cosa manca o cosa è errato in max 2 frasi)
+        "isCorrect": boolean (true se il concetto è giusto/accettabile, false se è sbagliato),
+        "feedback": "string" (Se giusto: un breve complimento. Se sbagliato: spiega gentilmente l'errore in max 2 frasi)
       }
     `;
 
