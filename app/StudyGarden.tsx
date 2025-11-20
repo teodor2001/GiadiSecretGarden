@@ -38,6 +38,7 @@ export default function StudyGarden() {
   const [cardsAnswered, setCardsAnswered] = useState(0);
   const [showPerfectRun, setShowPerfectRun] = useState(false);
 
+
   const handleLogin = async () => {
     if (!secretKey.trim()) return;
     setIsLoadingData(true);
