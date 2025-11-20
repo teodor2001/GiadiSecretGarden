@@ -1,158 +1,194 @@
 "use client";
-import { useState, useEffect } from 'react';
-import { Play, Pause, RefreshCw, Sprout, X, Heart, Flower } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Play, Pause, RefreshCcw, HandPlatter, X, Check, Volume2, VolumeX, Mail, Heart } from 'lucide-react';
+import StudyGarden from './StudyGarden';
 
-const motivations = [
-  {
-    id: 1,
-    text: "Ehi, guarda quanta strada hai già fatto. Non mollare proprio ora! 🌿",
-    image: "/giadi-determined.png", 
-    color: "bg-emerald-100 border-emerald-200 text-emerald-800"
-  },
-  {
-    id: 2,
-    text: "Anche i fiori più belli hanno bisogno di tempo per sbocciare. Respira. 🌸",
-    image: "/giadi-calm.png",
-    color: "bg-pink-100 border-pink-200 text-pink-800"
-  },
-  {
-    id: 3,
-    text: "Sono la tua fan numero uno! Finiamo questo pezzetto e poi pausa? ✨",
-    image: "/giadi-happy.png",
-    color: "bg-violet-100 border-violet-200 text-violet-800"
-  },
-  {
-    id: 4,
-    text: "Il tuo giardino segreto sta crescendo, anche se non lo vedi subito. Fidati.",
-    image: "/giadi-calm.png",
-    color: "bg-sky-100 border-sky-200 text-sky-800"
-  }
+type Phase = 'focus' | 'rest';
+type Motivation = { id: string; message: string; image: string; };
+
+const motivations: Motivation[] = [
+  { id: 'brother1', message: "Il tuo fratellone crede in te. Ho piena fiducia nel tuo genio!", image: '/giadi-happy.png' },
+  { id: 'brother2', message: "Usa la tua testolina, sai fare tutto ciò che vuoi. Devi solo crederci.", image: '/giadi-determined.png' },
+  { id: 'happy', message: "Sei fortissima! Non mollare proprio adesso!", image: '/giadi-happy.png' },
+  { id: 'determined', message: "Fai una piccola pausa e riprendi. Io sono qui con te.", image: '/giadi-determined.png' },
+  { id: 'calm', message: "Respira. Sei capace di cose grandi.", image: '/giadi-calm.png' },
 ];
 
-export default function SecretGarden() {
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+export default function Home() {
+  const [minutes, setMinutes] = useState(25);
+  const [seconds, setSeconds] = useState(0);
   const [isActive, setIsActive] = useState(false);
-  const [mode, setMode] = useState<'grow' | 'rest'>('grow');
+  const [phase, setPhase] = useState<Phase>('focus');
   
-  const [showCompanion, setShowCompanion] = useState(false);
+  const [showMotivation, setShowMotivation] = useState(false);
+  const [showLetter, setShowLetter] = useState(false);
+  
   const [currentMotivation, setCurrentMotivation] = useState(motivations[0]);
+  const [audioEnabled, setAudioEnabled] = useState(true);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-    } else if (timeLeft === 0) {
-      setIsActive(false);
+    if (typeof window !== 'undefined') {
+      audioRef.current = new Audio('/bell.mp3');
+      audioRef.current.load();
     }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, []);
 
-  const summonGiadi = () => {
-    const available = motivations.filter(m => m.id !== currentMotivation.id);
-    const random = available[Math.floor(Math.random() * available.length)];
-    setCurrentMotivation(random);
-    setShowCompanion(true);
-  };
+  useEffect(() => {
+    if (isActive) {
+      timerRef.current = setInterval(() => {
+        if (seconds === 0) {
+          if (minutes === 0) {
+            clearInterval(timerRef.current!);
+            setIsActive(false);
+            if (audioEnabled && audioRef.current) audioRef.current.play();
+            const nextPhase = phase === 'focus' ? 'rest' : 'focus';
+            setPhase(nextPhase);
+            setMinutes(nextPhase === 'focus' ? 25 : 5);
+            setSeconds(0);
+            setIsActive(true); 
+          } else {
+            setMinutes(prevMinutes => prevMinutes - 1);
+            setSeconds(59);
+          }
+        } else {
+          setSeconds(prevSeconds => prevSeconds - 1);
+        }
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isActive, minutes, seconds, phase, audioEnabled]);
+
+  const triggerMotivation = useCallback(() => {
+    const randomIndex = Math.floor(Math.random() * motivations.length);
+    setCurrentMotivation(motivations[randomIndex]);
+    setShowMotivation(true);
+  }, []);
+
+  const closeMotivation = useCallback(() => setShowMotivation(false), []);
+  const formatTime = (num: number) => num.toString().padStart(2, '0');
+  
+  const phaseColor = phase === 'focus' ? 'from-rose-400 to-pink-600' : 'from-emerald-400 to-teal-600';
+  const buttonColor = phase === 'focus' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600';
+  const buttonTextColor = phase === 'focus' ? 'text-rose-600' : 'text-emerald-600';
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-teal-100 via-emerald-50 to-stone-100 font-sans">
+    <div className="min-h-screen flex flex-col items-center justify-start md:justify-center p-4 pt-6 text-emerald-900 overflow-x-hidden">
       
-      <div className="absolute top-0 left-0 w-72 h-72 bg-green-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
-      <div className="absolute top-0 right-0 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
-      <div className="absolute -bottom-8 left-20 w-72 h-72 bg-yellow-100 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
-
-      <div className="z-10 w-full max-w-md p-8 bg-white/60 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 mx-4 transition-all duration-500">
+      <div className="relative w-full max-w-lg p-8 bg-white/50 backdrop-blur-xl rounded-[3rem] border-2 border-white/60 shadow-2xl flex flex-col items-center animate-in fade-in zoom-in-95 duration-500 mb-10 mx-auto mt-4">
         
-        <div className="text-center mb-10">
-          <h1 className="font-serif text-3xl text-emerald-900 mb-1 tracking-wide">
-            Secret Garden
-          </h1>
-          <p className="text-emerald-700/50 text-xs font-bold uppercase tracking-[0.2em]">
-            {mode === 'grow' ? 'Coltiva la mente' : 'Raccogli le energie'}
-          </p>
+        <button 
+          onClick={() => setShowLetter(true)} 
+          className="absolute top-8 left-8 text-rose-400 hover:text-rose-600 hover:scale-110 transition-all p-2 bg-white/50 rounded-full shadow-sm animate-pulse"
+          title="Messaggio per te"
+        >
+          <Mail size={24} />
+        </button>
+
+        <button 
+          onClick={() => setAudioEnabled(!audioEnabled)} 
+          className="absolute top-8 right-8 text-emerald-800/50 hover:text-emerald-800 transition-colors p-2 bg-white/30 rounded-full"
+          title={audioEnabled ? "Disattiva audio" : "Attiva audio"}
+        >
+          {audioEnabled ? <Volume2 size={24} /> : <VolumeX size={24} />}
+        </button>
+
+        <span className={`px-8 py-2 mb-6 text-sm md:text-base font-bold tracking-widest uppercase rounded-full bg-gradient-to-r ${phaseColor} text-white shadow-lg border border-white/20`}>
+          {phase === 'focus' ? '🔥 Momento Focus' : '☕ Pausa Relax'}
+        </span>
+
+        <div className="w-56 h-56 md:w-72 md:h-72 mb-6 rounded-full overflow-hidden border-[6px] border-white shadow-2xl bg-gradient-to-br from-pink-100 to-rose-50 relative transform hover:scale-105 transition-transform duration-500">
+          <img 
+            src={phase === 'focus' ? '/giadi-determined.png' : '/giadi-calm.png'} 
+            alt="Giadi Avatar" 
+            className="w-full h-full object-cover" 
+          />
         </div>
 
-        <div className="flex justify-center mb-12 scale-110">
-          <div className="relative">
-            <div className="text-7xl font-light text-emerald-900/90 tabular-nums tracking-tighter select-none">
-              {formatTime(timeLeft)}
-            </div>
-            <Sprout className={`absolute -top-4 -right-6 text-emerald-400 w-8 h-8 transition-all duration-1000 ${isActive ? 'animate-bounce' : 'opacity-50'}`} />
-          </div>
+        <div className="text-7xl md:text-8xl font-bold font-mono tracking-tighter text-emerald-950 drop-shadow-sm mb-8">
+          {formatTime(minutes)}:{formatTime(seconds)}
         </div>
 
-        <div className="flex justify-center gap-6 mb-10">
+        <div className="flex gap-6 mb-8">
           <button 
-            onClick={() => setIsActive(!isActive)}
-            className="group w-20 h-20 flex items-center justify-center bg-emerald-600 text-white rounded-full shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-105 transition-all active:scale-95"
+            onClick={() => setIsActive(!isActive)} 
+            className={`w-20 h-20 rounded-full text-white ${buttonColor} transition-all shadow-xl active:scale-90 flex items-center justify-center border-4 border-white/30`}
           >
-            {isActive ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-2" />}
+            {isActive ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-2" />}
           </button>
-          
           <button 
-            onClick={() => { setIsActive(false); setTimeLeft(mode === 'grow' ? 25*60 : 5*60); }}
-            className="w-20 h-20 flex items-center justify-center bg-white text-emerald-700 border border-emerald-100 rounded-full hover:bg-emerald-50 hover:scale-105 transition-all shadow-sm"
+            onClick={() => { setIsActive(false); setMinutes(phase === 'focus' ? 25 : 5); setSeconds(0); }} 
+            className={`w-20 h-20 rounded-full bg-white text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors shadow-xl active:scale-90 flex items-center justify-center border-4 border-transparent`}
           >
-            <RefreshCw size={28} />
-          </button>
-        </div>
-
-        <div className="flex bg-emerald-900/5 p-1.5 rounded-2xl mb-8">
-          <button onClick={() => setMode('grow')} className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${mode === 'grow' ? 'bg-white shadow-sm text-emerald-800' : 'text-emerald-600/60 hover:text-emerald-800'}`}>Focus</button>
-          <button onClick={() => setMode('rest')} className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${mode === 'rest' ? 'bg-white shadow-sm text-emerald-800' : 'text-emerald-600/60 hover:text-emerald-800'}`}>Relax</button>
-        </div>
-
-        <div className="text-center mt-4">
-          <button 
-            onClick={summonGiadi}
-            className="group relative px-5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-400 rounded-full text-xs font-medium transition-all active:scale-95 border border-rose-100"
-          >
-            <span className="flex items-center gap-2 group-hover:text-rose-500 transition-colors">
-              <Heart size={12} className="fill-current" /> 
-              Giadi, non ce la faccio...
-            </span>
+            <RefreshCcw size={32} />
           </button>
         </div>
+
+        <button 
+          onClick={triggerMotivation} 
+          className={`flex items-center gap-3 text-sm md:text-base font-bold ${buttonTextColor} bg-white/80 px-8 py-4 rounded-full shadow-lg hover:bg-white hover:scale-105 transition-all active:scale-95 border border-white`}
+        >
+          <HandPlatter size={20} /> Non ce la faccio... Aiuto!
+        </button>
       </div>
-      {showCompanion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-900/10 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative max-w-sm w-full bg-white rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-300 border border-white/50">
-            
-            <button 
-              onClick={() => setShowCompanion(false)}
-              className="absolute top-4 right-4 p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X size={18} />
-            </button>
 
-            <div className="flex flex-col items-center text-center pt-4">
-              <div className="w-28 h-28 mb-6 rounded-full overflow-hidden border-4 border-white shadow-xl bg-gradient-to-br from-pink-100 to-rose-50 flex items-center justify-center">
-                 <Flower size={48} className="text-rose-300" />
-              </div>
+      <div className="w-full max-w-5xl flex justify-center px-0 md:px-4">
+        <StudyGarden />
+      </div>
+      {showMotivation && (
+        <div className="fixed inset-0 bg-emerald-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          {/* Contenitore allargato a max-w-md e più arrotondato */}
+          <div className="bg-white p-8 md:p-12 rounded-[3rem] shadow-2xl relative w-full max-w-md text-center animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 border-4 border-pink-100">
+            <button onClick={closeMotivation} className="absolute top-6 right-6 text-gray-300 hover:text-gray-600"><X size={28} /></button>
 
-              <div className={`p-5 rounded-2xl ${currentMotivation.color} relative w-full`}>
-                <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-inherit rotate-45"></div>
-                <p className="font-medium relative z-10 font-serif leading-relaxed">
-                  "{currentMotivation.text}"
-                </p>
-              </div>
-              
-              <button 
-                onClick={() => setShowCompanion(false)}
-                className="mt-8 text-xs font-bold tracking-widest text-gray-300 hover:text-emerald-600 uppercase transition-colors"
-              >
-                Torna al giardino
-              </button>
+            <div className="w-48 h-48 md:w-64 md:h-64 mx-auto mb-8 rounded-full overflow-hidden border-[6px] border-pink-200 shadow-2xl transform hover:scale-105 transition-transform duration-300 animate-in zoom-in delay-150">
+              <img src={currentMotivation.image} alt="Giadi Motivazione" className="w-full h-full object-cover" />
             </div>
+            
+            <p className="text-2xl md:text-3xl font-bold text-rose-500 mb-4 font-serif leading-tight drop-shadow-sm">"{currentMotivation.message}"</p>
+            
+            <p className="text-base md:text-lg text-gray-500 font-bold uppercase tracking-widest mb-10">Giadi 2D e Teo credono in te!</p>
+            
+            <button onClick={closeMotivation} className="w-full bg-gradient-to-r from-rose-400 to-pink-500 text-white px-8 py-5 rounded-2xl font-bold shadow-xl hover:shadow-rose-300/50 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3 text-lg">
+              <Check size={24} /> Torno a studiare!
+            </button>
           </div>
         </div>
       )}
+
+      {showLetter && (
+        <div className="fixed inset-0 bg-rose-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+          <div className="bg-[#fff9f0] p-8 md:p-12 rounded-[2rem] shadow-2xl relative w-full max-w-md text-center animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 border border-rose-100">
+            <button onClick={() => setShowLetter(false)} className="absolute top-6 right-6 text-rose-300 hover:text-rose-600"><X size={24} /></button>
+            <div className="mb-6 flex justify-center">
+              <div className="bg-rose-100 p-4 rounded-full">
+                <Mail size={40} className="text-rose-500" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-serif font-bold text-rose-800 mb-6">Per la mia sorellina</h3>
+            <div className="space-y-4 text-lg text-rose-900/80 font-serif leading-relaxed italic">
+              <p>Voglio che ti sia chiara una cosa importantissima.</p>
+              <p>Il tuo <span className="font-bold text-rose-600">fratellone</span> ti supporta pienamente.</p>
+              <p>Ho fiducia cieca nel tuo <span className="font-bold text-rose-600">genio</span> e nella tua <span className="font-bold text-rose-600">testolina</span>.</p>
+              <p>Sei capace di fare tutto ciò che vuoi, devi solo iniziare a crederci tu quanto ci credo io.</p>
+            </div>
+            <div className="mt-10 flex justify-center">
+               <Heart className="text-rose-500 animate-bounce" fill="currentColor" size={32} />
+            </div>
+            <button onClick={() => setShowLetter(false)} className="mt-8 text-rose-400 text-sm hover:text-rose-600 underline">
+              Chiudi messaggio
+            </button>
+          </div>
+        </div>
+      )}
+
+      <audio ref={audioRef} src="/bell.mp3" preload="auto" />
     </div>
   );
 }
